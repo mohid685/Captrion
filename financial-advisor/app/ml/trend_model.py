@@ -1,0 +1,100 @@
+"""
+XGBoost trend prediction: train once, persist to disk, load for inference.
+
+Predicts next-week (5 trading day) price direction: up / down / sideways.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import xgboost as xgb
+
+from app.ingestion.market_data import get_historical_prices
+from app.ml.features import build_latest_features, build_training_dataset
+
+MODELS_DIR = Path("models")
+MODELS_DIR.mkdir(exist_ok=True)
+
+LABEL_TO_INT = {"down": 0, "sideways": 1, "up": 2}
+INT_TO_LABEL = {v: k for k, v in LABEL_TO_INT.items()}
+
+MIN_TRAINING_SAMPLES = 100
+
+
+class TrendModelError(Exception):
+    """Raised when a model can't be trained or isn't available for inference."""
+
+
+def _model_path(ticker: str) -> Path:
+    return MODELS_DIR / f"{ticker.upper()}_trend.json"
+
+
+def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
+    """Fetches history, trains an XGBoost classifier, and persists it to disk."""
+    history = get_historical_prices(ticker, period=period, interval="1d")
+    X, y = build_training_dataset(history)
+
+    if len(X) < MIN_TRAINING_SAMPLES:
+        raise TrendModelError(
+            f"Not enough data to train a model for '{ticker}' "
+            f"({len(X)} usable rows, need at least {MIN_TRAINING_SAMPLES})"
+        )
+
+    y_encoded = y.map(LABEL_TO_INT)
+
+    # Time-based split: no shuffling, since shuffling would leak future
+    # data into the training set.
+    split_idx = int(len(X) * 0.8)
+    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_train, y_test = y_encoded.iloc[:split_idx], y_encoded.iloc[split_idx:]
+
+    model = xgb.XGBClassifier(
+        n_estimators=200,
+        max_depth=4,
+        learning_rate=0.05,
+        objective="multi:softprob",
+        num_class=3,
+        eval_metric="mlogloss",
+    )
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+    accuracy = float((predictions == y_test.to_numpy()).mean()) if len(X_test) else None
+
+    model.save_model(str(_model_path(ticker)))
+
+    return {
+        "ticker": ticker.upper(),
+        "train_samples": len(X_train),
+        "test_samples": len(X_test),
+        "test_accuracy": round(accuracy, 4) if accuracy is not None else None,
+    }
+
+
+def predict_trend(ticker: str) -> dict[str, Any]:
+    """Loads the persisted model and predicts the current trend for a ticker."""
+    path = _model_path(ticker)
+    if not path.exists():
+        raise TrendModelError(
+            f"No trained model for '{ticker}'. POST /ml/{ticker.upper()}/train first."
+        )
+
+    model = xgb.XGBClassifier()
+    model.load_model(str(path))
+
+    # Only need recent history to compute the latest feature row.
+    history = get_historical_prices(ticker, period="3mo", interval="1d")
+    latest_features = build_latest_features(history)
+
+    probabilities = model.predict_proba(latest_features)[0]
+    top_idx = int(probabilities.argmax())
+
+    return {
+        "trend_prediction": INT_TO_LABEL[top_idx],
+        "trend_confidence": round(float(probabilities[top_idx]), 4),
+        "probabilities": {
+            INT_TO_LABEL[i]: round(float(p), 4) for i, p in enumerate(probabilities)
+        },
+    }

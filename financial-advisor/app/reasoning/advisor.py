@@ -11,7 +11,8 @@ from typing import Any
 from app.core.embeddings import embed_query
 from app.core.llm_client import generate_response
 from app.core.vector_store import query_similar
-from app.ml.mock_predictor import get_mock_ml_signals
+# from app.ml.mock_predictor import get_mock_ml_signals
+from app.ml.predictor import get_ml_signals
 from app.ml.sentiment import aggregate_sentiment, score_texts
 
 SYSTEM_PROMPT = """You are a financial investment advisor assistant. You must answer \
@@ -103,7 +104,8 @@ def ask_advisor(ticker: str, question: str, top_k: int = 5) -> dict[str, Any]:
     """
     query_vector = embed_query(question)
     rag_chunks = query_similar(ticker, query_vector, top_k=top_k)
-    ml_signals = get_mock_ml_signals(ticker)
+    # ml_signals = get_mock_ml_signals(ticker)
+    ml_signals = get_ml_signals(ticker)
     sentiment = _score_chunk_sentiment(rag_chunks)
 
     user_prompt = build_user_prompt(question, ticker, rag_chunks, ml_signals, sentiment)
