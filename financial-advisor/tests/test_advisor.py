@@ -3,41 +3,46 @@ from unittest.mock import MagicMock, patch
 from app.reasoning.advisor import build_user_prompt
 
 
+SAMPLE_ML_SIGNALS = {
+    "trend_prediction": "upward",
+    "trend_confidence": 0.72,
+    "risk_level": "moderate",
+    "sharpe_ratio_estimate": 1.1,
+    "volatility": "medium",
+    "note": "MOCK DATA — test",
+}
+
+SAMPLE_SENTIMENT = {
+    "overall_label": "positive",
+    "overall_confidence": 0.85,
+    "source": "FinBERT (real model — not mocked)",
+    "per_chunk": [],
+}
+
+
 class TestBuildUserPrompt:
-    def test_includes_rag_chunks_and_ml_signals(self) -> None:
+    def test_includes_rag_chunks_ml_signals_and_sentiment(self) -> None:
         rag_chunks = [
             {"source": "sec_filing", "doc_type": "10-Q", "date": "2026-07-31", "text": "Revenue grew 20%."}
         ]
-        ml_signals = {
-            "trend_prediction": "upward",
-            "trend_confidence": 0.72,
-            "risk_level": "moderate",
-            "sharpe_ratio_estimate": 1.1,
-            "volatility": "medium",
-            "note": "MOCK DATA — test",
-        }
 
-        prompt = build_user_prompt("How is revenue trending?", "AAPL", rag_chunks, ml_signals)
+        prompt = build_user_prompt(
+            "How is revenue trending?", "AAPL", rag_chunks, SAMPLE_ML_SIGNALS, SAMPLE_SENTIMENT
+        )
 
         assert "Revenue grew 20%." in prompt
         assert "upward" in prompt
+        assert "positive" in prompt
         assert "AAPL" in prompt
         assert "How is revenue trending?" in prompt
 
     def test_handles_no_chunks(self) -> None:
-        ml_signals = {
-            "trend_prediction": "upward",
-            "trend_confidence": 0.72,
-            "risk_level": "moderate",
-            "sharpe_ratio_estimate": 1.1,
-            "volatility": "medium",
-            "note": "MOCK DATA — test",
-        }
-        prompt = build_user_prompt("Any news?", "TSLA", [], ml_signals)
+        prompt = build_user_prompt("Any news?", "TSLA", [], SAMPLE_ML_SIGNALS, SAMPLE_SENTIMENT)
         assert "No relevant documents found." in prompt
 
 
 class TestAskAdvisor:
+    @patch("app.reasoning.advisor.score_texts")
     @patch("app.reasoning.advisor.generate_response")
     @patch("app.reasoning.advisor.query_similar")
     @patch("app.reasoning.advisor.embed_query")
@@ -46,6 +51,7 @@ class TestAskAdvisor:
         mock_embed: MagicMock,
         mock_query: MagicMock,
         mock_generate: MagicMock,
+        mock_score: MagicMock,
     ) -> None:
         from app.reasoning.advisor import ask_advisor
 
@@ -53,6 +59,7 @@ class TestAskAdvisor:
         mock_query.return_value = [
             {"source": "news", "doc_type": "news_article", "date": "2026-08-01", "text": "Good news.", "score": 0.9}
         ]
+        mock_score.return_value = [{"label": "positive", "confidence": 0.9}]
         mock_generate.return_value = "AAPL looks strong based on the evidence."
 
         result = ask_advisor("AAPL", "Is AAPL a good buy?")
@@ -61,3 +68,5 @@ class TestAskAdvisor:
         assert result["answer"] == "AAPL looks strong based on the evidence."
         assert len(result["sources_used"]) == 1
         assert result["ml_signals"]["trend_prediction"] == "upward"
+        assert result["sentiment_analysis"]["overall_label"] == "positive"
+        assert result["sentiment_analysis"]["source"] == "FinBERT (real model — not mocked)"
