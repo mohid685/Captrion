@@ -1,4 +1,7 @@
-from unittest.mock import MagicMock, patch
+import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -20,31 +23,36 @@ def _fake_history(n: int = 300, trend: str = "up") -> list[dict]:
     ]
 
 
+@pytest.fixture
+def models_dir(monkeypatch):
+    """Manually managed temp dir, sidestepping pytest's own tmp_path machinery."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="captrion_models_"))
+    monkeypatch.setattr(trend_model, "MODELS_DIR", temp_dir)
+    yield temp_dir
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 class TestTrainTrendModel:
-    def test_raises_on_insufficient_data(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setattr(trend_model, "MODELS_DIR", tmp_path)
+    def test_raises_on_insufficient_data(self, models_dir) -> None:
         with patch.object(trend_model, "get_historical_prices", return_value=_fake_history(n=20)):
             with pytest.raises(trend_model.TrendModelError):
                 trend_model.train_trend_model("FAKE")
 
-    def test_trains_and_persists_model(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setattr(trend_model, "MODELS_DIR", tmp_path)
+    def test_trains_and_persists_model(self, models_dir) -> None:
         with patch.object(trend_model, "get_historical_prices", return_value=_fake_history(n=300)):
             result = trend_model.train_trend_model("FAKE")
 
         assert result["ticker"] == "FAKE"
         assert result["train_samples"] > 0
-        assert (tmp_path / "FAKE_trend.json").exists()
+        assert (models_dir / "FAKE_trend.json").exists()
 
 
 class TestPredictTrend:
-    def test_raises_if_no_model_trained(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setattr(trend_model, "MODELS_DIR", tmp_path)
+    def test_raises_if_no_model_trained(self, models_dir) -> None:
         with pytest.raises(trend_model.TrendModelError):
             trend_model.predict_trend("NOTRAINED")
 
-    def test_predicts_after_training(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setattr(trend_model, "MODELS_DIR", tmp_path)
+    def test_predicts_after_training(self, models_dir) -> None:
         history = _fake_history(n=300)
 
         with patch.object(trend_model, "get_historical_prices", return_value=history):
