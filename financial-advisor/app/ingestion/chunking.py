@@ -14,9 +14,12 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
+import html
+
 def clean_text(raw: str) -> str:
-    """Strip HTML tags and collapse whitespace."""
-    no_tags = _TAG_RE.sub(" ", raw)
+    """Strip HTML tags, decode entities, and collapse whitespace."""
+    unescaped = html.unescape(raw)
+    no_tags = _TAG_RE.sub(" ", unescaped)
     return _WHITESPACE_RE.sub(" ", no_tags).strip()
 
 
