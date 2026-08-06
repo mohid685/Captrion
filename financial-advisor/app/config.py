@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     pinecone_environment: str = "us-east-1"
     pinecone_index_name: str = "financial-advisor"
 
+    # OpenRouter (LLM)
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openai/gpt-oss-20b:free"
+
     # External data sources
     alpha_vantage_api_key: str | None = None
 
