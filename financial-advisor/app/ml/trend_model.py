@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import numpy as np
 
 import xgboost as xgb
 
@@ -44,6 +45,15 @@ def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
 
     y_encoded = y.map(LABEL_TO_INT)
 
+    present_classes = set(y_encoded.unique())
+    if len(present_classes) < 3:
+        missing = set(LABEL_TO_INT.values()) - present_classes
+        missing_labels = [INT_TO_LABEL[m] for m in missing]
+        raise TrendModelError(
+            f"Training data for '{ticker}' only contains {len(present_classes)} of 3 "
+            f"trend classes (missing: {missing_labels}). Try a longer period."
+        )
+
     # Time-based split: no shuffling, since shuffling would leak future
     # data into the training set.
     split_idx = int(len(X) * 0.8)
@@ -55,7 +65,6 @@ def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
         max_depth=4,
         learning_rate=0.05,
         objective="multi:softprob",
-        num_class=3,
         eval_metric="mlogloss",
     )
     model.fit(X_train, y_train)
@@ -72,7 +81,6 @@ def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
         "test_accuracy": round(accuracy, 4) if accuracy is not None else None,
     }
 
-
 def predict_trend(ticker: str) -> dict[str, Any]:
     """Loads the persisted model and predicts the current trend for a ticker."""
     path = _model_path(ticker)
@@ -83,6 +91,11 @@ def predict_trend(ticker: str) -> dict[str, Any]:
 
     model = xgb.XGBClassifier()
     model.load_model(str(path))
+    # load_model() only restores the underlying booster, not the sklearn
+    # wrapper's classes_/n_classes_ metadata — predict_proba() needs both,
+    # so we restore them manually to match how the model was trained.
+    model.classes_ = np.array(sorted(LABEL_TO_INT.values()))
+    model.n_classes_ = len(model.classes_)
 
     # Only need recent history to compute the latest feature row.
     history = get_historical_prices(ticker, period="3mo", interval="1d")

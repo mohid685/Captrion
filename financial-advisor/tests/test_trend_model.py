@@ -9,18 +9,30 @@ from app.ml import trend_model
 
 
 def _fake_history(n: int = 300, trend: str = "up") -> list[dict]:
-    step = 1.0 if trend == "up" else -1.0
-    return [
-        {
-            "date": f"day{i}",
-            "open": 100 + i * step - 0.5,
-            "high": 100 + i * step + 1,
-            "low": 100 + i * step - 1,
-            "close": 100 + i * step,
-            "volume": 1_000_000 + (i % 50) * 5000,
-        }
-        for i in range(n)
-    ]
+    """
+    Synthetic OHLCV history that oscillates in medium-length waves, so
+    the 5-day-ahead label ends up containing a mix of up/down/sideways
+    — a flat or monotonic series only produces 1-2 classes, which
+    XGBoost's multiclass fit rejects.
+    """
+    import math
+
+    records = []
+    price = 100.0
+    for i in range(n):
+        # A slow sine wave drift plus small daily noise-like step
+        price = 100 + 15 * math.sin(i / 12) + (i % 5) * 0.3
+        records.append(
+            {
+                "date": f"day{i}",
+                "open": price - 0.5,
+                "high": price + 1,
+                "low": price - 1,
+                "close": price,
+                "volume": 1_000_000 + (i % 50) * 5000,
+            }
+        )
+    return records
 
 
 @pytest.fixture
