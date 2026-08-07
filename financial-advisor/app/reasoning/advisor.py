@@ -72,22 +72,16 @@ def build_user_prompt(
         )
     context_block = "\n\n".join(context_lines) if context_lines else "No relevant documents found."
 
-    # ml_block = (
-    #     f"Trend prediction: {ml_signals['trend_prediction']} "
-    #     f"(confidence: {ml_signals['trend_confidence']})\n"
-    #     f"Risk level: {ml_signals['risk_level']} "
-    #     f"(estimated Sharpe ratio: {ml_signals['sharpe_ratio_estimate']})\n"
-    #     f"Volatility: {ml_signals['volatility']}\n"
-    #     f"[{ml_signals['note']}]"
-    # )
-
     ml_block = (
         f"Trend prediction: {ml_signals['trend_prediction']} "
         f"(model confidence: {ml_signals['trend_confidence']})\n"
         f"Trend model reliability: {ml_signals.get('trend_reliability_tier', 'unknown')}\n"
         f"Risk level: {ml_signals['risk_level']} "
-        f"(estimated Sharpe ratio: {ml_signals['sharpe_ratio_estimate']})\n"
-        f"Volatility: {ml_signals['volatility']}\n"
+        f"(Sharpe ratio: {ml_signals.get('sharpe_ratio_estimate', 'n/a')}, "
+        f"annualized volatility: {ml_signals.get('annualized_volatility', 'n/a')}, "
+        f"max drawdown: {ml_signals.get('max_drawdown', 'n/a')}, "
+        f"Beta vs. SPY: {ml_signals.get('beta', 'n/a')})\n"
+        f"Risk metrics source: {ml_signals.get('risk_source', 'unknown')}\n"
         f"[{ml_signals['note']}]"
     )
 
