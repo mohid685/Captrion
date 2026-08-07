@@ -57,6 +57,9 @@ class TestTrainTrendModel:
         assert result["ticker"] == "FAKE"
         assert result["train_samples"] > 0
         assert (models_dir / "FAKE_trend.json").exists()
+        assert "reliability" in result
+        assert result["reliability"]["reliability_tier"] is not None
+        assert (models_dir / "FAKE_trend_meta.json").exists()
 
 
 class TestPredictTrend:
@@ -74,3 +77,28 @@ class TestPredictTrend:
         assert result["trend_prediction"] in {"up", "down", "sideways"}
         assert 0 <= result["trend_confidence"] <= 1
         assert set(result["probabilities"].keys()) == {"up", "down", "sideways"}
+
+
+class TestReliabilityTiering:
+    def test_predict_includes_reliability(self, models_dir) -> None:
+        history = _fake_history(n=300)
+        with patch.object(trend_model, "get_historical_prices", return_value=history):
+            trend_model.train_trend_model("FAKE")
+            result = trend_model.predict_trend("FAKE")
+
+        assert "reliability" in result
+        assert result["reliability"]["reliability_tier"] is not None
+        assert result["reliability"]["edge_over_baseline"] is not None
+
+    def test_missing_meta_file_degrades_gracefully(self, models_dir) -> None:
+        """If a model exists but its metadata file was deleted, prediction still works."""
+        history = _fake_history(n=300)
+        with patch.object(trend_model, "get_historical_prices", return_value=history):
+            trend_model.train_trend_model("FAKE")
+
+        trend_model._meta_path("FAKE").unlink()
+
+        with patch.object(trend_model, "get_historical_prices", return_value=history):
+            result = trend_model.predict_trend("FAKE")
+
+        assert "unknown" in result["reliability"]["reliability_tier"]

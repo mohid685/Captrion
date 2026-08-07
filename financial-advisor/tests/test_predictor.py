@@ -17,6 +17,11 @@ class TestGetMlSignals:
             "trend_prediction": "down",
             "trend_confidence": 0.81,
             "probabilities": {"up": 0.1, "down": 0.81, "sideways": 0.09},
+            "reliability": {
+                "naive_baseline_accuracy": 0.5,
+                "edge_over_baseline": 0.12,
+                "reliability_tier": "moderate — meaningfully outperforms the naive baseline",
+            },
         }
         with patch("app.ml.predictor.predict_trend", return_value=fake_real):
             signals = get_ml_signals("TRAINED")
@@ -24,4 +29,5 @@ class TestGetMlSignals:
         assert signals["trend_prediction"] == "down"
         assert signals["trend_confidence"] == 0.81
         assert signals["trend_source"] == "XGBoost (real model)"
+        assert signals["trend_reliability_tier"] == "moderate — meaningfully outperforms the naive baseline"
         assert "REAL" in signals["note"]

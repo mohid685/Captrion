@@ -9,6 +9,7 @@ SAMPLE_ML_SIGNALS = {
     "risk_level": "moderate",
     "sharpe_ratio_estimate": 1.1,
     "volatility": "medium",
+    "trend_reliability_tier": "very low — barely distinguishable from random guessing",
     "note": "MOCK DATA — test",
 }
 
@@ -42,6 +43,7 @@ class TestBuildUserPrompt:
 
 
 class TestAskAdvisor:
+    @patch("app.reasoning.advisor.get_ml_signals")
     @patch("app.reasoning.advisor.score_texts")
     @patch("app.reasoning.advisor.generate_response")
     @patch("app.reasoning.advisor.query_similar")
@@ -52,6 +54,7 @@ class TestAskAdvisor:
         mock_query: MagicMock,
         mock_generate: MagicMock,
         mock_score: MagicMock,
+        mock_ml_signals: MagicMock,
     ) -> None:
         from app.reasoning.advisor import ask_advisor
 
@@ -61,6 +64,16 @@ class TestAskAdvisor:
         ]
         mock_score.return_value = [{"label": "positive", "confidence": 0.9}]
         mock_generate.return_value = "AAPL looks strong based on the evidence."
+        mock_ml_signals.return_value = {
+            "ticker": "AAPL",
+            "trend_prediction": "upward",
+            "trend_confidence": 0.72,
+            "risk_level": "moderate",
+            "sharpe_ratio_estimate": 1.1,
+            "volatility": "medium",
+            "trend_reliability_tier": "very low — barely distinguishable from random guessing",
+            "note": "MOCK DATA — test",
+        }
 
         result = ask_advisor("AAPL", "Is AAPL a good buy?")
 

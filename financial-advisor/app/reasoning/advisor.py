@@ -20,6 +20,11 @@ the user's question using ONLY the evidence provided below: retrieved document \
 excerpts, real sentiment analysis, and quantitative model signals. Do not invent \
 facts, figures, or events that are not present in the provided evidence.
 
+The trend prediction signal includes a reliability rating. When that rating is \
+"very low" or "low," treat the trend prediction as a weak, exploratory data point \
+rather than a strong indicator — lean more heavily on the document evidence and \
+sentiment analysis in that case, and say so explicitly in your answer.
+
 If the evidence is insufficient to fully answer the question, say so explicitly \
 rather than guessing. Always mention that quantitative signals are model \
 estimates, not guarantees. Be concise, cite which type of source (SEC filing, \
@@ -67,9 +72,19 @@ def build_user_prompt(
         )
     context_block = "\n\n".join(context_lines) if context_lines else "No relevant documents found."
 
+    # ml_block = (
+    #     f"Trend prediction: {ml_signals['trend_prediction']} "
+    #     f"(confidence: {ml_signals['trend_confidence']})\n"
+    #     f"Risk level: {ml_signals['risk_level']} "
+    #     f"(estimated Sharpe ratio: {ml_signals['sharpe_ratio_estimate']})\n"
+    #     f"Volatility: {ml_signals['volatility']}\n"
+    #     f"[{ml_signals['note']}]"
+    # )
+
     ml_block = (
         f"Trend prediction: {ml_signals['trend_prediction']} "
-        f"(confidence: {ml_signals['trend_confidence']})\n"
+        f"(model confidence: {ml_signals['trend_confidence']})\n"
+        f"Trend model reliability: {ml_signals.get('trend_reliability_tier', 'unknown')}\n"
         f"Risk level: {ml_signals['risk_level']} "
         f"(estimated Sharpe ratio: {ml_signals['sharpe_ratio_estimate']})\n"
         f"Volatility: {ml_signals['volatility']}\n"
