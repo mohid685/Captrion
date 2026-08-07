@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 import numpy as np
+import pandas as pd
 
 import xgboost as xgb
 
@@ -79,6 +80,42 @@ def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
         "train_samples": len(X_train),
         "test_samples": len(X_test),
         "test_accuracy": round(accuracy, 4) if accuracy is not None else None,
+        "diagnostics": _build_diagnostics(y_train, y_test, predictions),
+    }
+
+
+def _build_diagnostics(
+    y_train: "pd.Series", y_test: "pd.Series", predictions: "np.ndarray"
+) -> dict[str, Any]:
+    """Class balance + confusion matrix, to sanity-check accuracy numbers."""
+    import numpy as np
+    import pandas as pd
+
+    def _label_counts(series: pd.Series) -> dict[str, int]:
+        counts = series.value_counts()
+        return {INT_TO_LABEL[i]: int(counts.get(i, 0)) for i in range(3)}
+
+    y_test_arr = y_test.to_numpy()
+    labels_order = [0, 1, 2]  # down, sideways, up
+    confusion = {INT_TO_LABEL[actual]: {INT_TO_LABEL[pred]: 0 for pred in labels_order} for actual in labels_order}
+    for actual, predicted in zip(y_test_arr, predictions):
+        confusion[INT_TO_LABEL[int(actual)]][INT_TO_LABEL[int(predicted)]] += 1
+
+    naive_baseline_label = max(_label_counts(y_train), key=lambda k: _label_counts(y_train)[k])
+    naive_baseline_accuracy = (
+        round(float((y_test_arr == LABEL_TO_INT[naive_baseline_label]).mean()), 4)
+        if len(y_test_arr)
+        else None
+    )
+
+    return {
+        "train_class_distribution": _label_counts(y_train),
+        "test_class_distribution": _label_counts(y_test),
+        "confusion_matrix": confusion,  # {actual_label: {predicted_label: count}}
+        "naive_baseline": {
+            "strategy": f"always predict '{naive_baseline_label}' (most common training class)",
+            "accuracy": naive_baseline_accuracy,
+        },
     }
 
 def predict_trend(ticker: str) -> dict[str, Any]:
@@ -89,19 +126,19 @@ def predict_trend(ticker: str) -> dict[str, Any]:
             f"No trained model for '{ticker}'. POST /ml/{ticker.upper()}/train first."
         )
 
-    model = xgb.XGBClassifier()
-    model.load_model(str(path))
-    # load_model() only restores the underlying booster, not the sklearn
-    # wrapper's classes_/n_classes_ metadata — predict_proba() needs both,
-    # so we restore them manually to match how the model was trained.
-    model.classes_ = np.array(sorted(LABEL_TO_INT.values()))
-    model.n_classes_ = len(model.classes_)
+    # Load via the raw Booster rather than the sklearn XGBClassifier wrapper.
+    # save_model()/load_model() only round-trip the Booster itself — the
+    # wrapper's classes_/n_classes_ bookkeeping isn't persisted, and in
+    # this xgboost version classes_ is a read-only property we can't
+    # restore manually. DMatrix + Booster.predict() avoids that entirely.
+    booster = xgb.Booster()
+    booster.load_model(str(path))
 
-    # Only need recent history to compute the latest feature row.
     history = get_historical_prices(ticker, period="3mo", interval="1d")
     latest_features = build_latest_features(history)
 
-    probabilities = model.predict_proba(latest_features)[0]
+    dmatrix = xgb.DMatrix(latest_features)
+    probabilities = booster.predict(dmatrix)[0]
     top_idx = int(probabilities.argmax())
 
     return {

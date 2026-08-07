@@ -83,13 +83,12 @@ def _fetch_from_yfinance(
         )
     return records
 
-
 def _fetch_from_alpha_vantage(ticker: str, api_key: str) -> list[dict[str, Any]]:
     params = {
         "function": "TIME_SERIES_DAILY",
         "symbol": ticker,
         "apikey": api_key,
-        "outputsize": "compact",
+        "outputsize": "compact",  # "full" requires a paid Alpha Vantage plan
     }
     response = requests.get(ALPHA_VANTAGE_BASE_URL, params=params, timeout=10)
     response.raise_for_status()
@@ -97,6 +96,13 @@ def _fetch_from_alpha_vantage(ticker: str, api_key: str) -> list[dict[str, Any]]
 
     series = payload.get("Time Series (Daily)")
     if not series:
+        reason = (
+            payload.get("Note")
+            or payload.get("Information")
+            or payload.get("Error Message")
+            or str(payload)[:200]
+        )
+        logger.warning("Alpha Vantage returned no time series for %s: %s", ticker, reason)
         return []
 
     records: list[dict[str, Any]] = []
