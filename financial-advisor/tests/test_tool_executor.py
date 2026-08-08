@@ -30,6 +30,21 @@ class TestExecuteTool:
         result = execute_tool("get_current_price", {"ticker": "AAPL"})
         assert result["close"] == 312.41
 
+    @patch("app.agentic.tool_executor.call_alphavantage_tool")
+    def test_dispatches_curated_tools_to_mcp_client(self, mock_call) -> None:
+        mock_call.return_value = {"tool": "COMPANY_OVERVIEW", "raw_result": "..."}
+        result = execute_tool("COMPANY_OVERVIEW", {"symbol": "AAPL"})
+        assert result["tool"] == "COMPANY_OVERVIEW"
+        mock_call.assert_called_once_with("COMPANY_OVERVIEW", {"symbol": "AAPL"})
+
+    @patch("app.agentic.tool_executor.call_alphavantage_tool")
+    def test_mcp_client_error_becomes_error_dict(self, mock_call) -> None:
+        from app.agentic.mcp_client import MCPClientError
+
+        mock_call.side_effect = MCPClientError("connection failed")
+        result = execute_tool("EARNINGS", {"symbol": "AAPL"})
+        assert "error" in result
+
 
 class TestParseToolCallArguments:
     def test_parses_valid_json(self) -> None:
