@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Any
 
-from app.agentic.tool_definitions import TOOL_DEFINITIONS
+from app.agentic.tool_definitions import get_all_tool_definitions
 from app.agentic.tool_executor import execute_tool, parse_tool_call_arguments
 from app.core.llm_client import LLMClientError, chat_completion
 
@@ -44,14 +44,14 @@ def ask_agentic_advisor(ticker: str, question: str) -> dict[str, Any]:
     tool_call_log: list[dict[str, Any]] = []
 
     for _ in range(MAX_ITERATIONS):
-        message = chat_completion(messages, tools=TOOL_DEFINITIONS)
+        message = chat_completion(messages, tools=get_all_tool_definitions())
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:
             return {
                 "ticker": ticker.upper(),
                 "question": question,
-                "answer": message.get("content", ""),
+                "answer": message.get("content") or "",
                 "tool_calls_made": tool_call_log,
             }
 

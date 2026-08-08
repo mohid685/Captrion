@@ -15,6 +15,7 @@ from app.ingestion.market_data import MarketDataError, get_latest_price
 from app.ml.risk_metrics import RiskMetricsError, compute_risk_metrics
 from app.ml.sentiment import aggregate_sentiment, score_texts
 from app.ml.trend_model import TrendModelError, predict_trend
+from app.agentic.mcp_client import CURATED_TOOL_NAMES, MCPClientError, call_alphavantage_tool
 
 
 class ToolExecutionError(Exception):
@@ -67,6 +68,12 @@ TOOL_DISPATCH = {
 
 def execute_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Executes a named tool with the given arguments, catching known errors."""
+    if name in CURATED_TOOL_NAMES:
+        try:
+            return call_alphavantage_tool(name, arguments)
+        except MCPClientError as exc:
+            return {"error": str(exc)}
+
     handler = TOOL_DISPATCH.get(name)
     if handler is None:
         raise ToolExecutionError(f"Unknown tool: '{name}'")

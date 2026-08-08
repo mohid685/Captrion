@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 # only want the ones that add genuinely new capability beyond what
 # we've already built (fundamentals, earnings, live quote, their own
 # sentiment scoring for comparison against our FinBERT).
-CURATED_TOOL_NAMES = {"OVERVIEW", "EARNINGS", "GLOBAL_QUOTE", "NEWS_SENTIMENT"}
-
+CURATED_TOOL_NAMES = {"COMPANY_OVERVIEW", "EARNINGS", "GLOBAL_QUOTE", "NEWS_SENTIMENT"}
 
 class MCPClientError(Exception):
     """Raised when the Alpha Vantage MCP server can't be reached or called."""

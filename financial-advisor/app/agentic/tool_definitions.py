@@ -133,3 +133,13 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
     },
 ]
+
+def get_all_tool_definitions() -> list[dict[str, Any]]:
+    """
+    Combines our internal tools with the curated Alpha Vantage MCP
+    tools. Internal tools are always available; MCP tools are added
+    if the remote server is reachable (fails gracefully otherwise).
+    """
+    from app.agentic.mcp_client import get_curated_tool_definitions
+
+    return TOOL_DEFINITIONS + get_curated_tool_definitions()
