@@ -1,0 +1,30 @@
+"""
+Database engine and session management for user accounts, profiles,
+and memory (Postgres — separate from Pinecone, which only holds
+document embeddings).
+"""
+
+from collections.abc import Generator
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from app.config import get_settings
+
+settings = get_settings()
+
+engine = create_engine(settings.database_url, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+def get_db() -> Generator[Session, None, None]:
+    """FastAPI dependency that yields a DB session and closes it after use."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

@@ -63,6 +63,7 @@ def build_user_prompt(
     rag_chunks: list[dict[str, Any]],
     ml_signals: dict[str, Any],
     sentiment: dict[str, Any],
+    user_context: dict[str, Any] | None = None,
 ) -> str:
     context_lines = []
     for i, chunk in enumerate(rag_chunks, start=1):
@@ -91,33 +92,48 @@ def build_user_prompt(
         f"[Computed by real FinBERT model over the retrieved evidence above]"
     )
 
+    user_block = ""
+    if user_context:
+        parts = []
+        if user_context.get("risk_tolerance"):
+            parts.append(f"Stated risk tolerance: {user_context['risk_tolerance']}")
+        if user_context.get("investment_goals"):
+            parts.append(f"Stated investment goals: {user_context['investment_goals']}")
+        if user_context.get("holding"):
+            h = user_context["holding"]
+            parts.append(
+                f"Currently holds {h['shares']} shares of {ticker.upper()} "
+                f"at a cost basis of ${h['cost_basis']:.2f}/share"
+            )
+        if parts:
+            user_block = "\n--- User context ---\n" + "\n".join(parts) + "\n"
+
     return f"""Ticker: {ticker.upper()}
 User question: {question}
-
+{user_block}
 --- Retrieved document evidence ---
 {context_block}
 
 --- Sentiment analysis (real model) ---
 {sentiment_block}
 
---- Quantitative model signals (mock — Phase 3 placeholder) ---
+--- Quantitative model signals ---
 {ml_block}
 
-Answer the user's question using only the evidence above."""
+Answer the user's question using only the evidence above. If user context is provided, \
+tailor your framing to their stated risk tolerance and goals where relevant, and \
+acknowledge their existing position if they hold this ticker."""
 
 
-def ask_advisor(ticker: str, question: str, top_k: int = 5) -> dict[str, Any]:
-    """
-    Full flow: retrieve RAG context, score sentiment, get mock ML
-    signals, and generate a grounded LLM response.
-    """
+def ask_advisor(
+    ticker: str, question: str, top_k: int = 5, user_context: dict[str, Any] | None = None
+) -> dict[str, Any]:
     query_vector = embed_query(question)
     rag_chunks = query_similar(ticker, query_vector, top_k=top_k)
-    # ml_signals = get_mock_ml_signals(ticker)
     ml_signals = get_ml_signals(ticker)
     sentiment = _score_chunk_sentiment(rag_chunks)
 
-    user_prompt = build_user_prompt(question, ticker, rag_chunks, ml_signals, sentiment)
+    user_prompt = build_user_prompt(question, ticker, rag_chunks, ml_signals, sentiment, user_context)
     answer = generate_response(SYSTEM_PROMPT, user_prompt)
 
     return {

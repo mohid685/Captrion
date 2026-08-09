@@ -37,12 +37,26 @@ def _post_to_openrouter(payload: dict[str, Any]) -> dict[str, Any]:
     }
     try:
         response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
-        response.raise_for_status()
     except requests.exceptions.RequestException as exc:
         logger.exception("OpenRouter request failed")
         raise LLMClientError(f"OpenRouter request failed: {exc}") from exc
 
-    return response.json()
+    if response.status_code != 200:
+        logger.error(
+            "OpenRouter returned status %s: %s", response.status_code, response.text[:500]
+        )
+        raise LLMClientError(
+            f"OpenRouter returned status {response.status_code}: {response.text[:300]}"
+        )
+
+    try:
+        return response.json()
+    except requests.exceptions.JSONDecodeError as exc:
+        logger.error("OpenRouter returned non-JSON response: %s", response.text[:500])
+        raise LLMClientError(
+            f"OpenRouter returned a non-JSON response (likely rate-limited or an "
+            f"upstream error): {response.text[:300]}"
+        ) from exc
 
 
 def generate_response(system_prompt: str, user_prompt: str) -> str:

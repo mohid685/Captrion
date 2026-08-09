@@ -31,15 +31,33 @@ signals are model estimates, not guarantees. Never present this as personalized 
 advice — frame it as informational analysis only."""
 
 
-def ask_agentic_advisor(ticker: str, question: str) -> dict[str, Any]:
+def ask_agentic_advisor(
+    ticker: str, question: str, user_context: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Runs the tool-calling loop: the LLM decides which tools to call
     (if any), tools execute, results feed back, repeat until a final
     text answer is produced.
     """
+    user_message = f"Ticker: {ticker.upper()}\nQuestion: {question}"
+    if user_context:
+        parts = []
+        if user_context.get("risk_tolerance"):
+            parts.append(f"Stated risk tolerance: {user_context['risk_tolerance']}")
+        if user_context.get("investment_goals"):
+            parts.append(f"Stated investment goals: {user_context['investment_goals']}")
+        if user_context.get("holding"):
+            h = user_context["holding"]
+            parts.append(
+                f"Currently holds {h['shares']} shares of {ticker.upper()} "
+                f"at a cost basis of ${h['cost_basis']:.2f}/share"
+            )
+        if parts:
+            user_message += "\n\nUser context:\n" + "\n".join(parts)
+
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Ticker: {ticker.upper()}\nQuestion: {question}"},
+        {"role": "user", "content": user_message},
     ]
     tool_call_log: list[dict[str, Any]] = []
 
