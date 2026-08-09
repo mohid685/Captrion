@@ -41,6 +41,20 @@ class TestBuildUserPrompt:
         prompt = build_user_prompt("Any news?", "TSLA", [], SAMPLE_ML_SIGNALS, SAMPLE_SENTIMENT)
         assert "No relevant documents found." in prompt
 
+    def test_includes_user_context_when_provided(self) -> None:
+        rag_chunks = []
+        user_context = {
+            "risk_tolerance": "low",
+            "investment_goals": "capital preservation",
+            "holding": {"shares": 20, "cost_basis": 275.0},
+        }
+        prompt = build_user_prompt(
+            "Should I sell?", "AAPL", rag_chunks, SAMPLE_ML_SIGNALS, SAMPLE_SENTIMENT, user_context
+        )
+        assert "low" in prompt
+        assert "capital preservation" in prompt
+        assert "20 shares" in prompt
+
 
 class TestAskAdvisor:
     @patch("app.reasoning.advisor.get_ml_signals")
