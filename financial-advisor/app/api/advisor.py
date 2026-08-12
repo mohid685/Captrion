@@ -39,17 +39,18 @@ def _build_user_context(current_user: User, ticker: str, db: Session) -> dict[st
 
 def _log_conversation(
     db: Session, user_id: str, ticker: str, question: str, answer: str, endpoint_used: str
-) -> None:
-    db.add(
-        Conversation(
-            user_id=user_id,
-            ticker=ticker.upper(),
-            question=question,
-            answer=answer,
-            endpoint_used=endpoint_used,
-        )
+) -> str:
+    conversation = Conversation(
+        user_id=user_id,
+        ticker=ticker.upper(),
+        question=question,
+        answer=answer,
+        endpoint_used=endpoint_used,
     )
+    db.add(conversation)
     db.commit()
+    db.refresh(conversation)
+    return conversation.id
 
 
 @router.post("/{ticker}/ask")

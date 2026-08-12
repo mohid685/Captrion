@@ -1,5 +1,6 @@
 import base64
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -17,6 +18,9 @@ from app.voice.tts import TTSError, synthesize_speech
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+
+AUDIO_RESPONSES_DIR = Path("audio_responses")
+AUDIO_RESPONSES_DIR.mkdir(exist_ok=True)
 
 
 @router.post("/{ticker}/ask")
@@ -39,13 +43,18 @@ async def voice_ask(
     except LLMClientError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    _log_conversation(db, current_user.id, ticker, question, result["answer"], "voice")
+    conversation_id = _log_conversation(db, current_user.id, ticker, question, result["answer"], "voice")
 
     audio_base64: str | None = None
+    audio_file_path: str | None = None
     tts_error: str | None = None
     try:
         answer_audio = synthesize_speech(result["answer"])
         audio_base64 = base64.b64encode(answer_audio).decode("utf-8")
+
+        file_path = AUDIO_RESPONSES_DIR / f"{conversation_id}.mp3"
+        file_path.write_bytes(answer_audio)
+        audio_file_path = str(file_path)
     except TTSError as exc:
         logger.warning("TTS synthesis failed, returning text-only response: %s", exc)
         tts_error = str(exc)
@@ -55,6 +64,7 @@ async def voice_ask(
         "transcribed_question": question,
         "answer_text": result["answer"],
         "answer_audio_base64": audio_base64,
+        "answer_audio_file": audio_file_path,
         "tts_error": tts_error,
         "tool_calls_made": result.get("tool_calls_made", []),
     }
