@@ -19,10 +19,10 @@ class TestGenerateResponse:
     ) -> None:
         mock_settings.return_value.openrouter_api_key = "fake-key"
         mock_settings.return_value.openrouter_model = "openai/gpt-oss-20b:free"
+        mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {
             "choices": [{"message": {"content": "This is the answer."}}]
         }
-        mock_post.return_value.raise_for_status = MagicMock()
 
         result = generate_response("system prompt", "user prompt")
 
@@ -35,8 +35,8 @@ class TestGenerateResponse:
     ) -> None:
         mock_settings.return_value.openrouter_api_key = "fake-key"
         mock_settings.return_value.openrouter_model = "openai/gpt-oss-20b:free"
+        mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"choices": []}
-        mock_post.return_value.raise_for_status = MagicMock()
 
         with pytest.raises(LLMClientError):
             generate_response("system", "user")

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import advisor, auth, conversations, documents, health, market, ml, portfolio, users, watchlist
+from app.api import advisor, auth, conversations, documents, health, market, ml, portfolio, users, voice, watchlist
 from app.config import get_settings
 from app.core.db import Base, engine
 
@@ -34,6 +34,7 @@ app.include_router(users.router)
 app.include_router(watchlist.router)
 app.include_router(portfolio.router)
 app.include_router(conversations.router)
+app.include_router(voice.router)
 
 
 @app.get("/")
