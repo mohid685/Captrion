@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    # Voice (Phase 6)
+    camb_api_key: str | None = None
+    camb_voice_id: int = 170619
+    whisper_model_name: str = "openai/whisper-small"
+
     @property
     def database_url(self) -> str:
         return (
