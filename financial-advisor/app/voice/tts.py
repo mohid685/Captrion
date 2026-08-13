@@ -30,9 +30,9 @@ def synthesize_speech(text: str) -> bytes:
         "text": text,
         "voice_id": settings.camb_voice_id,
         "language": "en-us",
-        "speech_model": "mars-flash",
+        "speech_model": "mars-pro",
         "output_configuration": {"format": "mp3"},
-    }
+}
 
     try:
         response = requests.post(CAMB_TTS_URL, headers=headers, json=payload, timeout=60)
