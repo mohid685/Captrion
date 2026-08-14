@@ -1,12 +1,13 @@
 import base64
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from app.agentic.agent import ask_agentic_advisor
+from app.agentic.voice_agent import ask_voice_advisor
 from app.api.advisor import _build_user_context, _log_conversation
 from app.api.deps import get_current_user
 from app.core.db import get_db
@@ -22,34 +23,41 @@ router = APIRouter(prefix="/voice", tags=["voice"])
 AUDIO_RESPONSES_DIR = Path("audio_responses")
 AUDIO_RESPONSES_DIR.mkdir(exist_ok=True)
 
-
 @router.post("/{ticker}/ask")
-async def voice_ask(
+def voice_ask(
     ticker: str,
     audio: UploadFile = File(...),
+    conversation_history: str | None = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    audio_bytes = await audio.read()
+    audio_bytes = audio.file.read()
 
     try:
         question = transcribe_audio(audio_bytes)
     except STTError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    history: list[dict[str, str]] = []
+    if conversation_history:
+        try:
+            history = json.loads(conversation_history)
+        except json.JSONDecodeError:
+            history = []
+
     user_context = _build_user_context(current_user, ticker, db)
     try:
-        result = ask_agentic_advisor(ticker, question, user_context=user_context)
+        result = ask_voice_advisor(ticker, question, conversation_history=history, user_context=user_context)
     except LLMClientError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    conversation_id = _log_conversation(db, current_user.id, ticker, question, result["answer"], "voice")
+    conversation_id = _log_conversation(db, current_user.id, ticker, question, result["reply"], "voice")
 
     audio_base64: str | None = None
     audio_file_path: str | None = None
     tts_error: str | None = None
     try:
-        answer_audio = synthesize_speech(result["answer"])
+        answer_audio = synthesize_speech(result["reply"])
         audio_base64 = base64.b64encode(answer_audio).decode("utf-8")
 
         file_path = AUDIO_RESPONSES_DIR / f"{conversation_id}.mp3"
@@ -62,7 +70,7 @@ async def voice_ask(
     return {
         "ticker": result["ticker"],
         "transcribed_question": question,
-        "answer_text": result["answer"],
+        "reply_text": result["reply"],
         "answer_audio_base64": audio_base64,
         "answer_audio_file": audio_file_path,
         "tts_error": tts_error,

@@ -9,13 +9,14 @@ import json
 import logging
 from typing import Any
 
-from app.agentic.tool_definitions import get_all_tool_definitions
+# from app.agentic.tool_definitions import get_all_tool_definitions
+from app.agentic.tool_definitions import TOOL_DEFINITIONS  # internal tools only — no external MCP handshake
 from app.agentic.tool_executor import execute_tool, parse_tool_call_arguments
 from app.core.llm_client import LLMClientError, chat_completion
 
 logger = logging.getLogger(__name__)
 
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 3
 
 SYSTEM_PROMPT = """You are a financial investment advisor assistant with access to tools \
 for retrieving real financial data: document search, sentiment analysis, trend prediction, \
@@ -62,7 +63,7 @@ def ask_agentic_advisor(
     tool_call_log: list[dict[str, Any]] = []
 
     for _ in range(MAX_ITERATIONS):
-        message = chat_completion(messages, tools=get_all_tool_definitions())
+        message = chat_completion(messages, tools=TOOL_DEFINITIONS)
         tool_calls = message.get("tool_calls")
 
         if not tool_calls:

@@ -141,7 +141,7 @@ def train_trend_model(ticker: str, period: str = "2y") -> dict[str, Any]:
         round(accuracy - naive_accuracy, 4) if accuracy is not None and naive_accuracy is not None else None
     )
 
-    model.save_model(str(_model_path(ticker)))
+    model.get_booster().save_model(str(_model_path(ticker)))
 
     metadata = {
         "ticker": ticker.upper(),

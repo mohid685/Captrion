@@ -56,8 +56,17 @@ def transcribe_audio(audio_bytes: bytes) -> str:
     if duration_seconds < 0.3:
         raise STTError("Audio is too short to transcribe")
 
+    # Reject near-silent clips outright — low-energy audio is where Whisper
+    # tends to hallucinate garbage output (including wrong-language noise).
+    rms_energy = float((audio_array.astype("float64") ** 2).mean() ** 0.5)
+    if rms_energy < 0.003:
+        raise STTError("Audio appears to be silence or too quiet to transcribe")
+
     asr = _get_whisper_pipeline()
-    result = asr({"array": audio_array, "sampling_rate": WHISPER_SAMPLE_RATE})
+    result = asr(
+        {"array": audio_array, "sampling_rate": WHISPER_SAMPLE_RATE},
+        generate_kwargs={"language": "en", "task": "transcribe"},
+    )
     text = result.get("text", "").strip()
 
     if len(text) < MIN_TRANSCRIPTION_LENGTH:
