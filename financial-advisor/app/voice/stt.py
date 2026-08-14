@@ -57,9 +57,11 @@ def transcribe_audio(audio_bytes: bytes) -> str:
         raise STTError("Audio is too short to transcribe")
 
     # Reject near-silent clips outright — low-energy audio is where Whisper
-    # tends to hallucinate garbage output (including wrong-language noise).
+    # tends to hallucinate garbage output. Use both RMS and peak so
+    # short speech bursts are not incorrectly rejected.
     rms_energy = float((audio_array.astype("float64") ** 2).mean() ** 0.5)
-    if rms_energy < 0.003:
+    peak_energy = float(abs(audio_array).max()) if len(audio_array) else 0.0
+    if rms_energy < 0.0005 and peak_energy < 0.01:
         raise STTError("Audio appears to be silence or too quiet to transcribe")
 
     asr = _get_whisper_pipeline()

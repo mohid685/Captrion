@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # Voice (Phase 6)
     camb_api_key: str | None = None
-    camb_voice_id: int = 170650
+    camb_voice_id: int = 170634
     whisper_model_name: str = "openai/whisper-small"
 
     @property

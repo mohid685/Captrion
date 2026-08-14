@@ -32,6 +32,17 @@ news, sentiment analysis, or model signal) supports each claim you make, and \
 never present this as personalized financial advice — frame it as informational \
 analysis only."""
 
+VOICE_SYSTEM_PROMPT = """You are a sharp, human financial advisor in a live conversation.
+Speak naturally like a person, not like a report. Give a direct view in 2-4 short
+sentences, using plain language and concrete numbers when available.
+
+Rules:
+- No markdown, no bullets, no headings, no disclaimers list.
+- Keep under 450 characters.
+- If data is limited, say that briefly and still give a practical next step.
+- If risk is high, mention position sizing or staged entry in one short phrase.
+- Never claim certainty; sound confident but realistic."""
+
 
 def _score_chunk_sentiment(rag_chunks: list[dict[str, Any]]) -> dict[str, Any]:
     """Run FinBERT over the retrieved chunk texts and aggregate the result."""
@@ -135,6 +146,73 @@ def ask_advisor(
 
     user_prompt = build_user_prompt(question, ticker, rag_chunks, ml_signals, sentiment, user_context)
     answer = generate_response(SYSTEM_PROMPT, user_prompt)
+
+    return {
+        "ticker": ticker.upper(),
+        "question": question,
+        "answer": answer,
+        "sources_used": [
+            {"source": c["source"], "doc_type": c.get("doc_type"), "date": c.get("date")}
+            for c in rag_chunks
+        ],
+        "sentiment_analysis": sentiment,
+        "ml_signals": ml_signals,
+    }
+
+
+def _compact_voice_context(rag_chunks: list[dict[str, Any]]) -> str:
+    if not rag_chunks:
+        return "No retrieved filings/news context available for this ticker right now."
+
+    snippets: list[str] = []
+    for chunk in rag_chunks[:3]:
+        source = chunk.get("source", "unknown source")
+        date = chunk.get("date", "n/a")
+        text = (chunk.get("text") or "").replace("\n", " ").strip()
+        snippets.append(f"{source} ({date}): {text[:220]}")
+    return " | ".join(snippets)
+
+
+def ask_advisor_voice(
+    ticker: str, question: str, top_k: int = 5, user_context: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Fast conversational variant of ask_advisor for voice UX."""
+    query_vector = embed_query(question)
+    rag_chunks = query_similar(ticker, query_vector, top_k=top_k)
+    ml_signals = get_ml_signals(ticker)
+    sentiment = _score_chunk_sentiment(rag_chunks)
+
+    context_note = ""
+    if user_context:
+        parts = []
+        if user_context.get("risk_tolerance"):
+            parts.append(f"risk tolerance: {user_context['risk_tolerance']}")
+        if user_context.get("investment_goals"):
+            parts.append(f"goals: {user_context['investment_goals']}")
+        if user_context.get("holding"):
+            h = user_context["holding"]
+            parts.append(f"holding: {h['shares']} shares at {h['cost_basis']:.2f}")
+        if parts:
+            context_note = "Client context: " + ", ".join(parts)
+
+    voice_user_prompt = (
+        f"Ticker: {ticker.upper()}\n"
+        f"Question: {question}\n"
+        f"{context_note}\n"
+        f"Retrieved context: {_compact_voice_context(rag_chunks)}\n"
+        f"Sentiment: {sentiment['overall_label']} (confidence {sentiment['overall_confidence']})\n"
+        f"Trend: {ml_signals['trend_prediction']} ({ml_signals['trend_confidence']})\n"
+        f"Trend reliability: {ml_signals.get('trend_reliability_tier', 'unknown')}\n"
+        f"Risk: volatility {ml_signals.get('annualized_volatility', 'n/a')}, "
+        f"Sharpe {ml_signals.get('sharpe_ratio_estimate', 'n/a')}, "
+        f"max drawdown {ml_signals.get('max_drawdown', 'n/a')}, "
+        f"beta {ml_signals.get('beta', 'n/a')}\n"
+        "Reply conversationally in 2-4 short sentences under 450 characters."
+    )
+
+    answer = generate_response(VOICE_SYSTEM_PROMPT, voice_user_prompt).strip()
+    if len(answer) > 450:
+        answer = answer[:450].rsplit(" ", 1)[0].rstrip(".,;: ") + "."
 
     return {
         "ticker": ticker.upper(),

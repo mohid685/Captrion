@@ -1,8 +1,8 @@
 """
 Local dev script: continuous voice conversation with the financial
-advisor. Auto-detects when you stop speaking (no more pressing Enter),
-sends each turn with running conversation history, and plays back the
-spoken reply. Press Ctrl+C to end the session.
+advisor. Auto-detects when you stop speaking, sends each turn with
+running conversation history, and plays back the spoken reply.
+Press Ctrl+C to end the session.
 
 Usage:
     python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password yourpassword
@@ -11,10 +11,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -22,80 +24,78 @@ import numpy as np
 import requests
 import sounddevice as sd
 import soundfile as sf
-import threading
-
 
 SAMPLE_RATE = 16000
 FRAME_MS = 30
 FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_MS / 1000)
-# SILENCE_RMS_THRESHOLD = 0.02  # was 0.01 — raised to reduce false-positive speech detection on background noise
-SILENCE_HANG_SECONDS = 1.2
+SILENCE_HANG_SECONDS = 1.0
 MAX_RECORD_SECONDS = 25
-MIN_SPEECH_SECONDS = 0.4
+MIN_SPEECH_SECONDS = 0.3
 
 
 def _rms(chunk: np.ndarray) -> float:
     return float(np.sqrt(np.mean(chunk.astype(np.float32) ** 2)))
 
 
-def record_with_vad(output_path: Path) -> bool:
-    """
-    Calibrates against ambient noise, then records until silence is
-    detected after speech has started, or the max duration cap is hit.
-    Returns False if nothing was captured.
-    """
-    print("Calibrating mic (stay quiet for a moment)...")
-    calibration_frames: list[np.ndarray] = []
+def elapsed_speech(frames: list[np.ndarray]) -> float:
+    return sum(len(f) for f in frames) / SAMPLE_RATE
+
+
+def calibrate_threshold() -> float:
+    """Samples ~0.5s of silence to set a threshold relative to this mic's actual noise floor."""
+    frames = []
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, blocksize=FRAME_SAMPLES) as stream:
-        for _ in range(15):  # ~450ms of ambient noise sample
+        for _ in range(16):
             chunk, _ = stream.read(FRAME_SAMPLES)
-            calibration_frames.append(chunk.copy())
+            frames.append(chunk.copy())
+    ambient = max(_rms(c) for c in frames)
+    return max(ambient * 3, 0.001)
 
-    ambient_level = max(_rms(c) for c in calibration_frames)
-    threshold = max(ambient_level * 2.5, 0.003)  # speech must clearly exceed ambient noise
-    print(f"Ambient level: {ambient_level:.5f} -> speech threshold: {threshold:.5f}")
 
-    print("Listening... (speak now, I'll stop automatically when you pause)")
+def record_with_vad(output_path: Path) -> bool:
+    threshold = calibrate_threshold()
+
+    print(f"Listening... (threshold: {threshold:.5f})")
     frames: list[np.ndarray] = []
+    pre_roll: collections.deque[np.ndarray] = collections.deque(maxlen=8)
     speech_started = False
     silence_start: float | None = None
     start_time = time.time()
-    last_print = 0.0
 
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, blocksize=FRAME_SAMPLES) as stream:
         while True:
             chunk, _ = stream.read(FRAME_SAMPLES)
-            frames.append(chunk.copy())
+            chunk_copy = chunk.copy()
             level = _rms(chunk)
             elapsed = time.time() - start_time
 
-            if elapsed - last_print > 1.0:
-                print(f"  (level: {level:.5f}{' - SPEAKING' if level > threshold else ''})")
-                last_print = elapsed
-
             if level > threshold:
+                if not speech_started:
+                    print("Got it — recording...")
+                    frames.extend(pre_roll)
                 speech_started = True
                 silence_start = None
+                frames.append(chunk_copy)
             elif speech_started:
+                frames.append(chunk_copy)
                 if silence_start is None:
                     silence_start = time.time()
                 elif time.time() - silence_start > SILENCE_HANG_SECONDS:
                     break
+            else:
+                pre_roll.append(chunk_copy)
 
             if elapsed > MAX_RECORD_SECONDS:
                 break
 
     if not speech_started or elapsed_speech(frames) < MIN_SPEECH_SECONDS:
-        print("Didn't catch that — no speech detected.")
+        print("Didn't catch that — try again.")
         return False
 
     audio = np.concatenate(frames, axis=0)
     sf.write(str(output_path), audio, SAMPLE_RATE)
+    print(f"Done — captured {elapsed_speech(frames):.1f}s. Sending...")
     return True
-
-def elapsed_speech(frames: list[np.ndarray]) -> float:
-    total_samples = sum(len(f) for f in frames)
-    return total_samples / SAMPLE_RATE
 
 
 def get_token(api_url: str, email: str, password: str) -> str:
@@ -108,15 +108,41 @@ def get_token(api_url: str, email: str, password: str) -> str:
 
 def ask_voice(
     api_url: str, ticker: str, token: str, audio_path: Path, history: list[dict[str, str]]
-) -> dict:
+) -> dict | None:
     with open(audio_path, "rb") as f:
         response = requests.post(
-            f"{api_url}/voice/{ticker}/ask",
+            f"{api_url}/voice/transcribe",
             headers={"Authorization": f"Bearer {token}"},
             files={"audio": f},
-            data={"conversation_history": json.dumps(history)},
         )
-    response.raise_for_status()
+    if response.status_code != 200:
+        try:
+            detail = response.json().get("detail", response.text)
+        except Exception:
+            detail = response.text
+        print(f"STT error ({response.status_code}): {detail}")
+        return None
+
+    transcribe_result = response.json()
+    question = transcribe_result["transcribed_question"]
+    detected_ticker = transcribe_result.get("detected_ticker")
+    print(f"You said: {question}")
+    if detected_ticker:
+        print(f"Detected ticker in your question: {detected_ticker}")
+
+    payload = {
+        "fallback_ticker": ticker,
+        "question": question,
+        "conversation_history": json.dumps(history),
+    }
+    response = requests.post(f"{api_url}/voice/respond", headers={"Authorization": f"Bearer {token}"}, data=payload)
+    if response.status_code != 200:
+        try:
+            detail = response.json().get("detail", response.text)
+        except Exception:
+            detail = response.text
+        print(f"Pipeline error ({response.status_code}): {detail}")
+        return None
     return response.json()
 
 
@@ -130,15 +156,14 @@ def play_audio_file(path: Path) -> None:
         subprocess.run([opener, str(path)], check=False)
 
 
-def _heartbeat(stop_event: threading.Event, label: str) -> None:
-    """Prints a dot every 3 seconds so long waits don't look frozen."""
+def _heartbeat(stop_event: threading.Event) -> None:
     elapsed = 0
     while not stop_event.is_set():
         time.sleep(3)
         if stop_event.is_set():
             break
         elapsed += 3
-        print(f"  ...{label} ({elapsed}s)")
+        print(f"  ...working ({elapsed}s)")
 
 
 def main() -> None:
@@ -164,12 +189,8 @@ def main() -> None:
                 if not record_with_vad(question_audio_path):
                     continue
 
-                print("Got your message. Sending to the advisor pipeline...")
-
                 stop_event = threading.Event()
-                heartbeat_thread = threading.Thread(
-                    target=_heartbeat, args=(stop_event, "waiting on pipeline (transcribing, reasoning, and generating voice)"), daemon=True
-                )
+                heartbeat_thread = threading.Thread(target=_heartbeat, args=(stop_event,), daemon=True)
                 heartbeat_thread.start()
 
                 try:
@@ -178,13 +199,15 @@ def main() -> None:
                     stop_event.set()
                     heartbeat_thread.join(timeout=1)
 
-                print(f"\nYou said: {result['transcribed_question']}")
-                print(f"Advisor: {result['reply_text']}\n")
+                if result is None:
+                    print()
+                    continue
+
+                print(f"Advisor ({result['ticker']}): {result['reply_text']}\n")
 
                 history.append({"question": result["transcribed_question"], "answer": result["reply_text"]})
 
                 if result.get("answer_audio_file"):
-                    print("Playing response audio...")
                     play_audio_file(Path(result["answer_audio_file"]))
                 elif result.get("tts_error"):
                     print(f"(voice synthesis failed: {result['tts_error']})")
