@@ -30,21 +30,18 @@ def synthesize_speech(text: str) -> bytes:
         "text": text,
         "voice_id": settings.camb_voice_id,
         "language": "en-us",
-        "speech_model": "mars-flash",  # fast model — priority is getting audio back quickly
+        "speech_model": "mars-flash",
         "output_configuration": {"format": "mp3"},
     }
 
-    last_error: Exception | None = None
-    response = None
-    for attempt in range(2):
-        try:
-            response = requests.post(url=CAMB_TTS_URL, headers=headers, json=payload, timeout=(5, 25))
-            break
-        except requests.exceptions.RequestException as exc:
-            logger.warning("camb.ai TTS attempt %d failed: %s", attempt + 1, exc)
-            last_error = exc
-    if response is None:
-        raise TTSError(f"camb.ai TTS request failed after retries: {last_error}") from last_error
+    # Single attempt, tight timeout. This machine's network stalls on
+    # camb.ai's streaming response specifically — retrying doesn't help,
+    # it just doubles the wait. Fail fast so the pipeline stays responsive.
+    try:
+        response = requests.post(url=CAMB_TTS_URL, headers=headers, json=payload, timeout=(5, 12))
+    except requests.exceptions.RequestException as exc:
+        logger.warning("camb.ai TTS failed: %s", exc)
+        raise TTSError(f"camb.ai TTS request failed: {exc}") from exc
 
     if response.status_code != 200:
         logger.error("camb.ai TTS returned status %s: %s", response.status_code, response.text[:300])

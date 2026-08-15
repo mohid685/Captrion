@@ -146,16 +146,14 @@ def get_all_tool_definitions() -> list[dict[str, Any]]:
 
 def get_voice_tool_definitions() -> list[dict[str, Any]]:
     """
-    Tool set for the voice agent: fast internal tools + broad-coverage
-    external data (Alpha Vantage), deliberately excluding tools that
-    only work for tickers we've locally ingested/trained (RAG search,
-    local sentiment, local trend model) — those are too narrow for
-    general "any stock" questions.
+    Tool set for the voice agent: broad-coverage external data (Alpha
+    Vantage) plus the pure-math calculator. Deliberately excludes
+    get_current_price and get_risk_metrics — both depend on yfinance,
+    which is unreliable in this environment and was the main source of
+    pipeline slowness/failures. GLOBAL_QUOTE covers price; COMPANY_OVERVIEW
+    (Beta, 52-week range) covers a risk read without touching yfinance.
     """
     from app.agentic.mcp_client import get_curated_tool_definitions
 
-    internal = [
-        t for t in TOOL_DEFINITIONS
-        if t["function"]["name"] in {"get_current_price", "get_risk_metrics", "calculate_financial_metric"}
-    ]
-    return internal + get_curated_tool_definitions()
+    calculator = [t for t in TOOL_DEFINITIONS if t["function"]["name"] == "calculate_financial_metric"]
+    return calculator + get_curated_tool_definitions()
