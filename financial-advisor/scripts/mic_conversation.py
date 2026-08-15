@@ -126,7 +126,6 @@ def ask_voice(
     transcribe_result = response.json()
     question = transcribe_result["transcribed_question"]
     detected_ticker = transcribe_result.get("detected_ticker")
-    print(f"You said: {question}")
     if detected_ticker:
         print(f"Detected ticker in your question: {detected_ticker}")
 
@@ -203,7 +202,14 @@ def main() -> None:
                     print()
                     continue
 
-                print(f"Advisor ({result['ticker']}): {result['reply_text']}\n")
+                print(f"\nYou said: {result['transcribed_question']}")
+
+                if result.get("data_gathered"):
+                    print("Gathering data:")
+                    for line in result["data_gathered"]:
+                        print(f"  - {line}")
+
+                print(f"\nAdvisor ({result['ticker']}): {result['reply_text']}\n")
 
                 history.append({"question": result["transcribed_question"], "answer": result["reply_text"]})
 

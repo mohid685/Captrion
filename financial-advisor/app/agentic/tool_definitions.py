@@ -143,3 +143,19 @@ def get_all_tool_definitions() -> list[dict[str, Any]]:
     from app.agentic.mcp_client import get_curated_tool_definitions
 
     return TOOL_DEFINITIONS + get_curated_tool_definitions()
+
+def get_voice_tool_definitions() -> list[dict[str, Any]]:
+    """
+    Tool set for the voice agent: fast internal tools + broad-coverage
+    external data (Alpha Vantage), deliberately excluding tools that
+    only work for tickers we've locally ingested/trained (RAG search,
+    local sentiment, local trend model) — those are too narrow for
+    general "any stock" questions.
+    """
+    from app.agentic.mcp_client import get_curated_tool_definitions
+
+    internal = [
+        t for t in TOOL_DEFINITIONS
+        if t["function"]["name"] in {"get_current_price", "get_risk_metrics", "calculate_financial_metric"}
+    ]
+    return internal + get_curated_tool_definitions()
