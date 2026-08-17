@@ -1,11 +1,11 @@
 """
-Local dev script: continuous voice conversation with the financial
-advisor. Auto-detects when you stop speaking, sends each turn with
-running conversation history, and plays back the spoken reply.
-Press Ctrl+C to end the session.
+Local dev script: continuous conversation with the financial advisor,
+either by typing (fast iteration) or speaking (full pipeline test).
+Press Ctrl+C or type "exit" to end the session.
 
 Usage:
-    python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password yourpassword
+    python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password yourpassword --input text
+    python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password yourpassword --input mic
 """
 
 from __future__ import annotations
@@ -42,7 +42,6 @@ def elapsed_speech(frames: list[np.ndarray]) -> float:
 
 
 def calibrate_threshold() -> float:
-    """Samples ~0.5s of silence to set a threshold relative to this mic's actual noise floor."""
     frames = []
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, blocksize=FRAME_SAMPLES) as stream:
         for _ in range(16):
@@ -106,7 +105,7 @@ def get_token(api_url: str, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-def ask_voice(
+def ask_voice_from_audio(
     api_url: str, ticker: str, token: str, audio_path: Path, history: list[dict[str, str]]
 ) -> dict | None:
     with open(audio_path, "rb") as f:
@@ -116,19 +115,16 @@ def ask_voice(
             files={"audio": f},
         )
     if response.status_code != 200:
-        try:
-            detail = response.json().get("detail", response.text)
-        except Exception:
-            detail = response.text
-        print(f"STT error ({response.status_code}): {detail}")
+        print(f"STT error ({response.status_code}): {_error_detail(response)}")
         return None
 
-    transcribe_result = response.json()
-    question = transcribe_result["transcribed_question"]
-    detected_ticker = transcribe_result.get("detected_ticker")
-    if detected_ticker:
-        print(f"Detected ticker in your question: {detected_ticker}")
+    question = response.json()["transcribed_question"]
+    return ask_with_question(api_url, ticker, token, question, history)
 
+
+def ask_with_question(
+    api_url: str, ticker: str, token: str, question: str, history: list[dict[str, str]]
+) -> dict | None:
     payload = {
         "fallback_ticker": ticker,
         "question": question,
@@ -136,13 +132,19 @@ def ask_voice(
     }
     response = requests.post(f"{api_url}/voice/respond", headers={"Authorization": f"Bearer {token}"}, data=payload)
     if response.status_code != 200:
-        try:
-            detail = response.json().get("detail", response.text)
-        except Exception:
-            detail = response.text
-        print(f"Pipeline error ({response.status_code}): {detail}")
+        print(f"Pipeline error ({response.status_code}): {_error_detail(response)}")
         return None
-    return response.json()
+
+    result = response.json()
+    result.setdefault("transcribed_question", question)
+    return result
+
+
+def _error_detail(response: requests.Response) -> str:
+    try:
+        return response.json().get("detail", response.text)
+    except Exception:
+        return response.text
 
 
 def play_audio_file(path: Path) -> None:
@@ -165,12 +167,30 @@ def _heartbeat(stop_event: threading.Event) -> None:
         print(f"  ...working ({elapsed}s)")
 
 
+def _run_turn(get_result_fn) -> dict | None:
+    """Wraps a turn (mic or typed) with the heartbeat + timing display."""
+    stop_event = threading.Event()
+    heartbeat_thread = threading.Thread(target=_heartbeat, args=(stop_event,), daemon=True)
+    heartbeat_thread.start()
+    try:
+        return get_result_fn()
+    finally:
+        stop_event.set()
+        heartbeat_thread.join(timeout=1)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Continuous voice conversation with the financial advisor")
+    parser = argparse.ArgumentParser(description="Conversation with the financial advisor")
     parser.add_argument("--ticker", required=True)
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
     parser.add_argument("--api-url", default="http://127.0.0.1:8000")
+    parser.add_argument(
+        "--input",
+        choices=["text", "mic"],
+        default="text",
+        help="'text' (default) to type questions for fast iteration, 'mic' for real voice-in testing",
+    )
     args = parser.parse_args()
 
     print("Authenticating...")
@@ -178,49 +198,53 @@ def main() -> None:
     print("Authenticated.\n")
 
     history: list[dict[str, str]] = []
-    print(f"Conversation started for {args.ticker.upper()}. Press Ctrl+C to end.\n")
+    mode_note = "Type your question and press Enter (type 'exit' to quit)." if args.input == "text" else "Speak when ready."
+    print(f"Conversation started for {args.ticker.upper()}. {mode_note}\n")
 
     try:
         while True:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                question_audio_path = Path(tmp_dir) / "question.wav"
-
-                if not record_with_vad(question_audio_path):
+            if args.input == "text":
+                question = input("You: ").strip()
+                if not question:
                     continue
+                if question.lower() in {"exit", "quit"}:
+                    break
+                result = _run_turn(lambda: ask_with_question(args.api_url, args.ticker, token, question, history))
+            else:
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    question_audio_path = Path(tmp_dir) / "question.wav"
+                    if not record_with_vad(question_audio_path):
+                        continue
+                    result = _run_turn(
+                        lambda: ask_voice_from_audio(args.api_url, args.ticker, token, question_audio_path, history)
+                    )
 
-                stop_event = threading.Event()
-                heartbeat_thread = threading.Thread(target=_heartbeat, args=(stop_event,), daemon=True)
-                heartbeat_thread.start()
+            if result is None:
+                print()
+                continue
 
-                try:
-                    result = ask_voice(args.api_url, args.ticker, token, question_audio_path, history)
-                finally:
-                    stop_event.set()
-                    heartbeat_thread.join(timeout=1)
-
-                if result is None:
-                    print()
-                    continue
-
+            if args.input == "mic":
                 print(f"\nYou said: {result['transcribed_question']}")
 
-                if result.get("data_gathered"):
-                    print("Gathering data:")
-                    for line in result["data_gathered"]:
-                        print(f"  - {line}")
+            if result.get("data_gathered"):
+                print("Gathering data:")
+                for line in result["data_gathered"]:
+                    print(f"  - {line}")
 
-                print(f"\nAdvisor ({result['ticker']}): {result['reply_text']}\n")
+            print(f"\nAdvisor ({result['ticker']}): {result['reply_text']}\n")
 
-                history.append({"question": result["transcribed_question"], "answer": result["reply_text"]})
+            history.append({"question": result["transcribed_question"], "answer": result["reply_text"]})
 
-                if result.get("answer_audio_file"):
-                    play_audio_file(Path(result["answer_audio_file"]))
-                elif result.get("tts_error"):
-                    print(f"(voice synthesis failed: {result['tts_error']})")
+            if result.get("answer_audio_file"):
+                play_audio_file(Path(result["answer_audio_file"]))
+            elif result.get("tts_error"):
+                print(f"(voice synthesis failed: {result['tts_error']})")
 
-                print("---\n")
+            print("---\n")
     except KeyboardInterrupt:
-        print("\nConversation ended.")
+        pass
+
+    print("\nConversation ended.")
 
 
 if __name__ == "__main__":

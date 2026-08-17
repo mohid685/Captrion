@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.agentic.web_search_tool import WebSearchError, search_financial_web
+
 from app.core.embeddings import embed_query
 from app.core.vector_store import VectorStoreError, query_similar
 from app.finance.calculator import CalculatorError, calculate_financial_metric
@@ -63,6 +65,7 @@ TOOL_DISPATCH = {
     "get_risk_metrics": _tool_get_risk_metrics,
     "get_current_price": _tool_get_current_price,
     "calculate_financial_metric": _tool_calculate_financial_metric,
+    "search_financial_web": lambda query: search_financial_web(query),
 }
 
 
@@ -86,6 +89,7 @@ def execute_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         RiskMetricsError,
         MarketDataError,
         CalculatorError,
+        WebSearchError,
     ) as exc:
         return {"error": str(exc)}
 

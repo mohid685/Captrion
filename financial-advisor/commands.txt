@@ -1,0 +1,75 @@
+=========================================================
+FINANCIAL ADVISOR — FULL TEST SEQUENCE (COLD START)
+=========================================================
+
+1. START DOCKER
+-----------------------------------------
+Open Docker Desktop manually, wait for the whale icon to be steady.
+
+docker compose up -d
+docker ps
+
+Confirm financial-advisor-db shows healthy before continuing.
+
+
+2. INSTALL / SYNC DEPENDENCIES (only needed after requirements.txt changes)
+-----------------------------------------
+pip install -r requirements.txt
+
+
+3. START THE API SERVER
+-----------------------------------------
+uvicorn app.main:app --reload
+
+Wait for "Application startup complete." with no errors.
+Leave this terminal running — open a NEW terminal for everything below.
+
+
+4. AUTH — REGISTER (only once, first time ever)
+-----------------------------------------
+curl -X POST http://127.0.0.1:8000/auth/register -H "Content-Type: application/json" -d "{\"email\": \"you@example.com\", \"password\": \"testpassword123\"}"
+
+
+5. AUTH — LOGIN (any time you need a fresh token manually)
+-----------------------------------------
+curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" -d "{\"email\": \"you@example.com\", \"password\": \"testpassword123\"}"
+
+Copy the "access_token" value from the response for steps below.
+
+
+6. SET PROFILE (optional, once — personalizes responses)
+-----------------------------------------
+curl -X PUT http://127.0.0.1:8000/users/me/profile -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -d "{\"risk_tolerance\": \"moderate\", \"investment_goals\": \"long-term growth\"}"
+
+
+7. ADD A PORTFOLIO HOLDING (optional, once — personalizes responses)
+-----------------------------------------
+curl -X POST http://127.0.0.1:8000/users/me/portfolio -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -d "{\"ticker\": \"AAPL\", \"shares\": 20, \"cost_basis\": 275.00}"
+
+
+8. RUN THE CONVERSATION SCRIPT — TYPED MODE (default, for fast testing)
+-----------------------------------------
+python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password testpassword123 --input text
+
+Type your question and press Enter. Type "exit" or Ctrl+C to end.
+
+
+9. RUN THE CONVERSATION SCRIPT — MIC MODE (real voice-in, for full pipeline testing)
+-----------------------------------------
+python scripts/mic_conversation.py --ticker AAPL --email you@example.com --password testpassword123 --input mic
+
+
+10. RUN THE TEST SUITE
+-----------------------------------------
+pytest -m "not integration" -vv
+
+
+11. CHECK CONVERSATION HISTORY (optional)
+-----------------------------------------
+curl http://127.0.0.1:8000/users/me/conversations -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+
+12. STOP EVERYTHING
+-----------------------------------------
+Ctrl+C in the uvicorn terminal
+docker compose down   (only if you want to stop Postgres too — leave it running otherwise)

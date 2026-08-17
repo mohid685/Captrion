@@ -146,14 +146,33 @@ def get_all_tool_definitions() -> list[dict[str, Any]]:
 
 def get_voice_tool_definitions() -> list[dict[str, Any]]:
     """
-    Tool set for the voice agent: broad-coverage external data (Alpha
-    Vantage) plus the pure-math calculator. Deliberately excludes
-    get_current_price and get_risk_metrics — both depend on yfinance,
-    which is unreliable in this environment and was the main source of
-    pipeline slowness/failures. GLOBAL_QUOTE covers price; COMPANY_OVERVIEW
-    (Beta, 52-week range) covers a risk read without touching yfinance.
+    Tool set for the voice agent: the calculator plus a single live web
+    search tool (Tavily), replacing Alpha Vantage entirely for voice.
+    The agent builds a targeted search query itself at call time from
+    the user's actual question — works for any company or topic, not
+    limited to a curated Alpha Vantage tool list or ticker coverage.
     """
-    from app.agentic.mcp_client import get_curated_tool_definitions
-
     calculator = [t for t in TOOL_DEFINITIONS if t["function"]["name"] == "calculate_financial_metric"]
-    return calculator + get_curated_tool_definitions()
+
+    web_search_tool = {
+        "type": "function",
+        "function": {
+            "name": "search_financial_web",
+            "description": (
+                "Search the live web for current financial information: prices, news, company "
+                "fundamentals, earnings, analyst views, or anything else needed to answer the "
+                "client's question. Build a specific, targeted query — include the company name "
+                "and what you actually need (e.g. 'Samsung Electronics stock price today', "
+                "'Apple Q3 2026 earnings results')."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Specific search query"},
+                },
+                "required": ["query"],
+            },
+        },
+    }
+
+    return calculator + [web_search_tool]
