@@ -22,18 +22,16 @@ class AskRequest(BaseModel):
 
 def _build_user_context(current_user: User, ticker: str, db: Session) -> dict[str, Any]:
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    holding = (
-        db.query(PortfolioItem)
-        .filter(PortfolioItem.user_id == current_user.id, PortfolioItem.ticker == ticker.upper())
-        .first()
-    )
+    all_holdings = db.query(PortfolioItem).filter(PortfolioItem.user_id == current_user.id).all()
 
     context: dict[str, Any] = {}
     if profile:
         context["risk_tolerance"] = profile.risk_tolerance
         context["investment_goals"] = profile.investment_goals
-    if holding:
-        context["holding"] = {"shares": holding.shares, "cost_basis": holding.cost_basis}
+    if all_holdings:
+        context["holdings"] = [
+            {"ticker": h.ticker, "shares": h.shares, "cost_basis": h.cost_basis} for h in all_holdings
+        ]
     return context
 
 

@@ -1,17 +1,10 @@
-"""
-Centralized application configuration.
-
-All environment-dependent values (API keys, feature flags) are read here
-so the rest of the app never touches os.environ directly.
-"""
-
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Pinecone
     pinecone_api_key: str | None = None
@@ -41,10 +34,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
+    # Whisper (STT)
+    whisper_model_name: str = "openai/whisper-small"
+
     # ElevenLabs (TTS)
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str | None = None
-    elevenlabs_model_id: str = "eleven_flash_v2_5"
+    elevenlabs_model_id: str = "eleven_v3"
 
     # Tavily (search)
     tavily_api_key: str | None = None

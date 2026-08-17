@@ -146,24 +146,19 @@ def get_all_tool_definitions() -> list[dict[str, Any]]:
 
 def get_voice_tool_definitions() -> list[dict[str, Any]]:
     """
-    Tool set for the voice agent: the calculator plus a single live web
-    search tool (Tavily), replacing Alpha Vantage entirely for voice.
-    The agent builds a targeted search query itself at call time from
-    the user's actual question — works for any company or topic, not
-    limited to a curated Alpha Vantage tool list or ticker coverage.
+    Voice tool set: all internal layers (RAG, sentiment, trend, risk,
+    current price, calculator) plus live web search (Tavily) as the
+    replacement for Alpha Vantage. Alpha Vantage MCP tools are excluded
+    from voice entirely.
     """
-    calculator = [t for t in TOOL_DEFINITIONS if t["function"]["name"] == "calculate_financial_metric"]
-
     web_search_tool = {
         "type": "function",
         "function": {
             "name": "search_financial_web",
             "description": (
-                "Search the live web for current financial information: prices, news, company "
-                "fundamentals, earnings, analyst views, or anything else needed to answer the "
-                "client's question. Build a specific, targeted query — include the company name "
-                "and what you actually need (e.g. 'Samsung Electronics stock price today', "
-                "'Apple Q3 2026 earnings results')."
+                "Search the live web for current financial information not covered by your other "
+                "tools: general news, analyst commentary, or data on companies/tickers your internal "
+                "tools don't have indexed or trained models for. Build a specific, targeted query."
             ),
             "parameters": {
                 "type": "object",
@@ -175,4 +170,4 @@ def get_voice_tool_definitions() -> list[dict[str, Any]]:
         },
     }
 
-    return calculator + [web_search_tool]
+    return TOOL_DEFINITIONS + [web_search_tool]
