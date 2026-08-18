@@ -41,12 +41,35 @@ const PortfolioPage = () => {
     toast({ title: 'Add holding feature coming soon', status: 'info', duration: 3000, isClosable: true });
   };
 
+  const totalInvested = holdings.reduce((sum, h) => sum + h.shares * h.cost_basis, 0);
+  const totalShares = holdings.reduce((sum, h) => sum + h.shares, 0);
+
   return (
     <Box py={4}>
       <Stack spacing={6}>
-        <Text fontSize="3xl" fontWeight="bold" color="white">
-          My Portfolio
-        </Text>
+        <Box>
+          <Text className="dash-greeting" mb={1}>Your holdings</Text>
+          <Text fontSize="3xl" fontWeight="bold" color="white">
+            My Portfolio
+          </Text>
+        </Box>
+
+        {holdings.length > 0 && (
+          <Flex className="portfolio-summary">
+            <Box className="glass portfolio-chip" border="1px solid" borderColor="surface.border">
+              <Text className="chip-label">Total invested</Text>
+              <Text className="chip-value">${totalInvested.toLocaleString(undefined, { maximumFractionDigits: 2 })}</Text>
+            </Box>
+            <Box className="glass portfolio-chip" border="1px solid" borderColor="surface.border">
+              <Text className="chip-label">Positions</Text>
+              <Text className="chip-value">{holdings.length}</Text>
+            </Box>
+            <Box className="glass portfolio-chip" border="1px solid" borderColor="surface.border">
+              <Text className="chip-label">Total shares</Text>
+              <Text className="chip-value">{totalShares}</Text>
+            </Box>
+          </Flex>
+        )}
 
         <Box
           className="glass"
@@ -64,7 +87,7 @@ const PortfolioPage = () => {
             <Button
               variant="outline"
               borderColor="brand.400"
-              color="red.200"
+              color="blue.200"
               _hover={{ bg: 'rgba(43,188,255,0.14)' }}
               onClick={handleAddHolding}
               size="sm"
@@ -78,9 +101,13 @@ const PortfolioPage = () => {
               <Spinner color="brand.400" />
             </Flex>
           ) : holdings.length === 0 ? (
-            <Box textAlign="center" py={10}>
-              <Text fontSize="md" color="gray.500">
-                No holdings yet. Add your first stock to get started.
+            <Box textAlign="center" py={12}>
+              <Text fontSize="2xl" mb={2}>BarChart</Text>
+              <Text fontSize="md" color="gray.400" fontWeight="semibold">
+                No holdings yet
+              </Text>
+              <Text fontSize="sm" color="gray.600" mt={1}>
+                Add your first stock to start tracking performance.
               </Text>
             </Box>
           ) : (
@@ -97,7 +124,7 @@ const PortfolioPage = () => {
                 {holdings.map((holding) => {
                   const invested = holding.shares * holding.cost_basis;
                   return (
-                    <Tr key={holding.ticker} _hover={{ bg: 'surface.cardHover' }}>
+                    <Tr key={holding.ticker} _hover={{ bg: 'surface.cardHover' }} transition="background .15s ease">
                       <Td fontWeight="bold" color="white">{holding.ticker}</Td>
                       <Td isNumeric color="gray.300">{holding.shares}</Td>
                       <Td isNumeric color="gray.300">${holding.cost_basis.toFixed(2)}</Td>

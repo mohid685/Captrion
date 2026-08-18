@@ -1,12 +1,19 @@
-import { Box, Button, Flex, Stack, Text } from '@chakra-ui/react';
+import { Box, Button, Flex, Text } from '@chakra-ui/react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import captrionLogo from '../../logo/logo_C.png';
 
 const features = [
-  { icon: '🤖', title: 'Agentic AI', desc: 'Advanced AI agents that reason and act on your behalf' },
-  { icon: '📊', title: 'Portfolio Management', desc: 'Track, analyze, and optimize your investments' },
-  { icon: '📈', title: 'Market Analysis', desc: 'Real-time insights and predictions' },
-  { icon: '🛡️', title: 'Risk Management', desc: 'Protect your portfolio with intelligent risk controls' },
+  { icon: 'Bot', title: 'Agentic AI', desc: 'Advanced AI agents that reason and act on your behalf' },
+  { icon: 'BarChart', title: 'Portfolio Management', desc: 'Track, analyze, and optimize your investments' },
+  { icon: 'TrendingUp', title: 'Market Analysis', desc: 'Real-time insights and predictions' },
+  { icon: 'Shield', title: 'Risk Management', desc: 'Protect your portfolio with intelligent risk controls' },
+];
+
+const stats = [
+  { num: '24/7', label: 'Agent uptime' },
+  { num: '<1s', label: 'Response time' },
+  { num: 'Live', label: 'Market data' },
 ];
 
 const HomePage = () => {
@@ -18,51 +25,36 @@ const HomePage = () => {
   };
 
   return (
-    <Box minH="80vh" py={10} px={4}>
-      <Stack spacing={8} align="center" maxW="4xl" mx="auto">
-        <Box
-          className="glass"
-          border="1px solid"
-          borderColor="surface.border"
-          borderRadius="2xl"
-          boxShadow="0 20px 60px rgba(43,188,255,0.15)"
-          p={{ base: 6, md: 10 }}
-          w="100%"
-          textAlign="center"
-        >
-          <Box
-            w={16}
-            h={16}
-            mx="auto"
-            mb={6}
-            borderRadius="xl"
-            bgGradient="linear(to-br, brand.400, brand.700)"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontSize="3xl"
-            fontWeight="bold"
-            color="white"
-          >
-            C
+    <Box py={{ base: 6, md: 10 }} px={{ base: 2, md: 4 }}>
+      <Box className="home-shell">
+        <Box className="home-visual">
+          <Box className="auth-core">
+            <Box className="auth-core-ring r1" />
+            <Box className="auth-core-ring r2" />
+            <Box className="auth-core-ring r3" />
+            <Box className="auth-core-ticks" />
+            <Box className="auth-core-hub">
+              <Box className="auth-core-logo">
+                <img src={captrionLogo} alt="Captrion" />
+              </Box>
+            </Box>
           </Box>
-          <Text
-            fontSize={{ base: '3xl', md: '5xl' }}
-            fontWeight="extrabold"
-            bgGradient="linear(to-r, brand.300, brand.500)"
-            bgClip="text"
-          >
-            Captrion
+        </Box>
+
+        <Box>
+          <Box className="home-badge" mb={5}>
+            <span />
+            Agent online
+          </Box>
+          <Text className="home-title" mb={5}>
+            Market research, <em>made simple</em>
           </Text>
-          <Text fontSize={{ base: 'lg', md: '2xl' }} color="gray.300" mt={2} fontWeight="medium">
-            Market research, made simple
-          </Text>
-          <Text fontSize="md" mt={4} color="gray.500" maxW="xl" mx="auto">
+          <Text className="home-sub" mb={8}>
             Get personalized investment advice, portfolio management, and market insights
-            powered by advanced AI agents.
+            powered by advanced AI agents that watch the market so you don't have to.
           </Text>
 
-          <Flex mt={8} gap={4} justify="center" flexWrap="wrap">
+          <Flex gap={4} flexWrap="wrap" mb={10}>
             <Button
               bgGradient="linear(to-r, brand.500, brand.600)"
               color="white"
@@ -71,7 +63,7 @@ const HomePage = () => {
               onClick={handleGetStarted}
               px={8}
               py={6}
-              fontSize="lg"
+              fontSize="md"
             >
               Get Started
             </Button>
@@ -83,39 +75,48 @@ const HomePage = () => {
               onClick={() => navigate('/chat')}
               px={8}
               py={6}
-              fontSize="lg"
+              fontSize="md"
             >
               Try the Chat
             </Button>
           </Flex>
 
-          <Flex mt={12} gap={5} justify="center" flexWrap="wrap">
-            {features.map((f) => (
-              <Box
-                key={f.title}
-                textAlign="left"
-                minW="220px"
-                flex="1"
-                className="glass"
-                border="1px solid"
-                borderColor="surface.border"
-                borderRadius="xl"
-                p={5}
-                transition="all 0.2s"
-                _hover={{ borderColor: 'brand.400', transform: 'translateY(-3px)' }}
-              >
-                <Text fontSize="2xl" mb={2}>{f.icon}</Text>
-                <Text fontSize="md" fontWeight="semibold" color="white">
-                  {f.title}
-                </Text>
-                <Text fontSize="sm" color="gray.500" mt={1}>
-                  {f.desc}
-                </Text>
+          <Flex className="home-stats">
+            {stats.map((s) => (
+              <Box key={s.label}>
+                <Text className="stat-num">{s.num}</Text>
+                <Text className="stat-label">{s.label}</Text>
               </Box>
             ))}
           </Flex>
         </Box>
-      </Stack>
+      </Box>
+
+      <Flex mt={{ base: 6, md: 10 }} gap={5} flexWrap="wrap">
+        {features.map((f) => (
+          <Box
+            key={f.title}
+            className="glass feature-card"
+            textAlign="left"
+            minW="220px"
+            flex="1"
+            border="1px solid"
+            borderColor="surface.border"
+            borderRadius="xl"
+            p={5}
+            transition="all 0.2s"
+            _hover={{ borderColor: 'brand.400', transform: 'translateY(-3px)' }}
+          >
+            <Box className="feature-icon">{f.icon}</Box>
+            <Text fontSize="md" fontWeight="semibold" color="white">
+              {f.title}
+            </Text>
+            <Text fontSize="sm" color="gray.500" mt={1}>
+              {f.desc}
+            </Text>
+          </Box>
+        ))}
+      </Flex>
     </Box>
   );
 };

@@ -1,7 +1,6 @@
 import { Box, Button, Flex, Text } from '@chakra-ui/react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
-import captrionLogo from '../../logo/logo_C.png';
 
 interface HeaderProps {
   currentUser: { email: string } | null;
@@ -37,25 +36,10 @@ const Header = ({ currentUser }: HeaderProps) => {
       top={0}
       zIndex={10}
     >
-      <Flex align="center" justify="space-between" flexWrap="wrap" gap={4} maxW="container.xl" mx="auto">
+      <Flex align="center" justify="space-between" flexWrap="wrap" gap={4} maxW="container.xl" mx="auto" position="relative">
         <Flex align="center" gap={3} cursor="pointer" onClick={() => navigate('/')}>
-          <Box
-            w={9}
-            h={9}
-            borderRadius="lg"
-            overflow="hidden"
-            bg="#04111c"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            fontWeight="bold"
-            fontSize="lg"
-            color="white"
-          >
-            <Box as="img" src={captrionLogo} alt="Captrion" w="100%" h="100%" objectFit="cover" transform="scale(1.45)" />
-          </Box>
           <Text
-            fontSize="xl"
+            fontSize="2xl"
             fontWeight="bold"
             color="white"
             textShadow="0 0 18px rgba(43,188,255,.55)"
@@ -65,7 +49,15 @@ const Header = ({ currentUser }: HeaderProps) => {
         </Flex>
 
         {currentUser && (
-          <Flex as="nav" align="center" gap={1} display={{ base: 'none', md: 'flex' }}>
+          <Flex
+            as="nav"
+            align="center"
+            gap={1}
+            display={{ base: 'none', md: 'flex' }}
+            position="absolute"
+            left="50%"
+            transform="translateX(-50%)"
+          >
             {NAV_LINKS.map((link) => {
               const active = location.pathname === link.to;
               return (
