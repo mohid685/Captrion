@@ -1,8 +1,9 @@
-import { Box, Button, FormControl, Input, Text, useToast, VStack } from '@chakra-ui/react';
+import { Box, Button, Text, useToast } from '@chakra-ui/react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import captrionLogo from '../../logo/logo_C.png';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -37,40 +38,64 @@ const LoginPage = () => {
   };
 
   return (
-    <VStack className="auth-shell" align="flex-start" justify="center" spacing={6} p={8}>
-      <Box className="auth-heading"><Text className="eyebrow">Secure access</Text><Text fontSize={{ base: '3xl', md: '4xl' }} fontWeight="800" className="page-title">Welcome back</Text><Text fontSize="md" color="gray.400" mt={2}>Sign in to your workspace.</Text></Box>
-      <Box
-        className="auth-card glass"
-        w="100%"
-        maxW="md"
-      >
-        <Text fontSize="2xl" fontWeight="bold" mb={6} color="white" textAlign="center">
-          Sign in
+    <Box className="auth-shell">
+      <Box className="auth-visual">
+        <Box className="auth-core">
+          <Box className="auth-core-ring r1" />
+          <Box className="auth-core-ring r2" />
+          <Box className="auth-core-ring r3" />
+          <Box className="auth-core-ticks" />
+          <Box className="auth-core-hub">
+            <Box className="auth-core-logo">
+              <img src={captrionLogo} alt="Captrion" />
+            </Box>
+          </Box>
+        </Box>
+        <Text className="auth-visual-title">Welcome back to Captrion</Text>
+        <Text className="auth-visual-sub">
+          Your AI advisor has been watching the markets while you were away. Sign in to pick up the conversation.
         </Text>
-        <form onSubmit={handleSubmit}>
-          <VStack spacing={4} align="stretch">
-            <FormControl isRequired>
-              <Input
+        <Box className="auth-visual-tags">
+          <span>Agentic AI</span>
+          <span>Live markets</span>
+          <span>Voice ready</span>
+        </Box>
+      </Box>
+
+      <Box className="auth-form-panel">
+        <Box className="auth-form-inner">
+          <Text className="auth-form-eyebrow">Secure access</Text>
+          <Text className="auth-form-title">Sign in</Text>
+          <Text className="auth-form-sub">Enter your credentials to access your workspace.</Text>
+
+          <form onSubmit={handleSubmit}>
+            <Box className="auth-field">
+              <label htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                className="auth-underline-input"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                size="lg"
+                autoComplete="email"
               />
-            </FormControl>
-            <FormControl isRequired>
-              <Input
+            </Box>
+            <Box className="auth-field">
+              <label htmlFor="login-password">Password</label>
+              <input
+                id="login-password"
+                className="auth-underline-input"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                size="lg"
+                autoComplete="current-password"
               />
-            </FormControl>
+            </Box>
+
             <Button
-              w="100%"
-              mt={2}
-              size="lg"
+              className="auth-submit"
               bgGradient="linear(to-r, brand.500, brand.600)"
               color="white"
               _hover={{ bgGradient: 'linear(to-r, brand.400, brand.600)' }}
@@ -79,8 +104,9 @@ const LoginPage = () => {
             >
               Login
             </Button>
-          </VStack>
-          <Text mt={5} fontSize="sm" color="gray.500" textAlign="center">
+          </form>
+
+          <Text className="auth-switch">
             Don't have an account?{' '}
             <Text
               as="span"
@@ -92,9 +118,9 @@ const LoginPage = () => {
               Register here
             </Text>
           </Text>
-        </form>
+        </Box>
       </Box>
-    </VStack>
+    </Box>
   );
 };
 
